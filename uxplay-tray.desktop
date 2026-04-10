@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=UxPlay Tray
+Comment=UxPlay AirPlay Server Tray
+Exec=/home/xuanhong/uxplay-tray/uxplay-tray
+Icon=airplay
+Terminal=false
+Categories=Utility;Audio;
+StartupNotify=true
+X-GNOME-Autostart-enabled=true
