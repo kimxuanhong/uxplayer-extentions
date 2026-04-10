@@ -2,9 +2,7 @@ package main
 
 import (
 	"log"
-	"os"
 	"os/exec"
-	"strings"
 	"sync"
 	"time"
 
@@ -12,87 +10,76 @@ import (
 )
 
 var (
-	uxplayProcess *os.Process
-	mu            sync.Mutex
+	uxplayCmd *exec.Cmd
+	mu        sync.Mutex
 )
 
-func getUxPlayPID() string {
-	cmd := exec.Command("pgrep", "-o", "uxplay")
-	out, err := cmd.Output()
-	if err != nil {
-		return ""
-	}
-	return strings.TrimSpace(string(out))
-}
-
+// Gọi trong lock
 func isRunning() bool {
-	return getUxPlayPID() != ""
+	return uxplayCmd != nil
 }
 
-func startUxPlay() error {
+func startUxPlay() {
 	mu.Lock()
 	defer mu.Unlock()
 
 	if isRunning() {
-		log.Println("UxPlay already running")
-		return nil
+		return
 	}
 
 	cmd := exec.Command("uxplay", "-n", "Ubuntu AirPlay")
 	if err := cmd.Start(); err != nil {
 		log.Printf("Failed to start uxplay: %v", err)
-		return err
+		return
 	}
 
-	uxplayProcess = cmd.Process
+	uxplayCmd = cmd
 	log.Printf("UxPlay started (PID: %d)", cmd.Process.Pid)
 
 	go func() {
 		cmd.Wait()
 		mu.Lock()
-		uxplayProcess = nil
+		uxplayCmd = nil
 		mu.Unlock()
-		log.Println("UxPlay process exited")
+		log.Println("UxPlay exited")
 	}()
-
-	return nil
 }
 
-func stopUxPlay() error {
+func stopUxPlay() {
 	mu.Lock()
 	defer mu.Unlock()
 
-	if uxplayProcess == nil {
-		log.Println("UxPlay not running")
-		return nil
+	if !isRunning() {
+		return
 	}
 
-	if err := uxplayProcess.Kill(); err != nil {
-		log.Printf("Failed to kill process: %v", err)
-		return err
+	if err := uxplayCmd.Process.Kill(); err != nil {
+		log.Printf("Failed to kill uxplay: %v", err)
+		return
 	}
 
-	log.Printf("UxPlay stopped (PID: %d)", uxplayProcess.Pid)
-	uxplayProcess = nil
-	return nil
+	log.Printf("UxPlay stopped (PID: %d)", uxplayCmd.Process.Pid)
+	uxplayCmd = nil
 }
 
 func updateMenuStatus(mToggle *systray.MenuItem) {
-	if isRunning() {
+	mu.Lock()
+	running := isRunning()
+	mu.Unlock()
+
+	if running {
 		mToggle.SetTitle("Stop UxPlay")
-		mToggle.SetTooltip("Click to stop UxPlay")
 	} else {
 		mToggle.SetTitle("Start UxPlay")
-		mToggle.SetTooltip("Click to start UxPlay")
 	}
 }
 
 func onReady() {
-	systray.SetTitle("UxPlay")
-	systray.SetTooltip("UxPlay AirPlay")
+	systray.SetTitle("AirPlay")
+	systray.SetTooltip("UxPlay AirPlay Receiver")
 
-	mToggle := systray.AddMenuItem("Start UxPlay", "Click to toggle")
-	mQuit := systray.AddMenuItem("Quit", "Quit app")
+	mToggle := systray.AddMenuItem("Start UxPlay", "Toggle UxPlay")
+	mQuit := systray.AddMenuItem("Quit", "Quit")
 
 	updateMenuStatus(mToggle)
 
@@ -100,14 +87,21 @@ func onReady() {
 		for {
 			select {
 			case <-mToggle.ClickedCh:
-				if isRunning() {
+				mu.Lock()
+				running := isRunning()
+				mu.Unlock()
+
+				if running {
 					stopUxPlay()
 				} else {
 					startUxPlay()
 				}
-				time.Sleep(200 * time.Millisecond)
+
+				time.Sleep(300 * time.Millisecond)
 				updateMenuStatus(mToggle)
+
 			case <-mQuit.ClickedCh:
+				stopUxPlay()
 				systray.Quit()
 				return
 			}
