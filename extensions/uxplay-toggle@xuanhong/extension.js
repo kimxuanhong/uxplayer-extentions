@@ -133,7 +133,7 @@ class UxPlayToggle extends PanelMenu.Button {
 
                 if (isRunning) {
                     this.icon.set_gicon(this.customIcon);
-                    this.icon.set_style("color: #3584e4;"); 
+                    this.icon.set_style("color: #3498db;"); 
                 } else {
                     this.icon.set_gicon(this.customIcon);
                     this.icon.set_style("color: white;"); 
