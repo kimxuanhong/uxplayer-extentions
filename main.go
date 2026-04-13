@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/getlantern/systray"
+	"github.com/godbus/dbus/v5"
 )
 
 var (
@@ -17,6 +18,47 @@ var (
 // Gọi trong lock
 func isRunning() bool {
 	return uxplayCmd != nil
+}
+
+// DBus Object
+type UxPlay struct{}
+
+func (u UxPlay) Toggle() (bool, *dbus.Error) {
+	mu.Lock()
+	running := isRunning()
+	mu.Unlock()
+
+	if running {
+		stopUxPlay()
+		return false, nil
+	} else {
+		startUxPlay()
+		return true, nil
+	}
+}
+
+func (u UxPlay) Status() (bool, *dbus.Error) {
+	mu.Lock()
+	defer mu.Unlock()
+	return isRunning(), nil
+}
+
+func initDBus() {
+	conn, err := dbus.ConnectSessionBus()
+	if err != nil {
+		log.Fatalf("Failed to connect to session bus: %v", err)
+	}
+
+	u := UxPlay{}
+	conn.Export(u, "/org/uxplay/Tray", "org.uxplay.Tray")
+	reply, err := conn.RequestName("org.uxplay.Tray", dbus.NameFlagDoNotQueue)
+	if err != nil {
+		log.Printf("Failed to request DBus name: %v", err)
+		return
+	}
+	if reply != dbus.RequestNameReplyPrimaryOwner {
+		log.Println("DBus name already taken")
+	}
 }
 
 func startUxPlay() {
@@ -112,5 +154,6 @@ func onReady() {
 func onExit() {}
 
 func main() {
+	go initDBus()
 	systray.Run(onReady, onExit)
 }
