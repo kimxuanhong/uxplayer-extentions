@@ -60,9 +60,11 @@ class UxPlayToggle extends PanelMenu.Button {
         this._proxy.connectSignal('SharingChanged', (proxy, senderName, [isSharing]) => {
             log(`[UxPlay] SharingChanged signal received: ${isSharing}`);
             if (isSharing) {
-                this.icon.set_style("color: green; font-weight: bold;");
+                this.icon.set_style("color: green;");
+                this.icon.opacity = 255;
             } else {
                 this.icon.set_style("color: white;");
+                this.icon.opacity = 255;
             }
         });
 
@@ -397,12 +399,14 @@ class UxPlayToggle extends PanelMenu.Button {
                         this.daemonItem.label.set_text('Start service');
                     }
                     this.icon.set_gicon(this.customIcon);
-                    this.icon.set_style("opacity: 0.5; color: white;");
+                    this.icon.set_style("color: white;");
+                    this.icon.opacity = 127;
                     return;
                 }
 
                 // Daemon đang chạy
                 this.isDaemonRunning = true;
+                this.icon.opacity = 255;
                 if (this.daemonItem && this.daemonItem.label) {
                     this.daemonItem.label.set_text('Stop Service');
                 }
