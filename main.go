@@ -68,9 +68,9 @@ func updateMenuStatus(mToggle *systray.MenuItem) {
 	mu.Unlock()
 
 	if running {
-		mToggle.SetTitle("Stop UxPlay")
+		mToggle.SetTitle("Stop")
 	} else {
-		mToggle.SetTitle("Start UxPlay")
+		mToggle.SetTitle("Start ")
 	}
 }
 
@@ -78,7 +78,7 @@ func onReady() {
 	systray.SetTitle("AirPlay")
 	systray.SetTooltip("UxPlay AirPlay Receiver")
 
-	mToggle := systray.AddMenuItem("Start UxPlay", "Toggle UxPlay")
+	mToggle := systray.AddMenuItem("Start", "Toggle")
 	mQuit := systray.AddMenuItem("Quit", "Quit")
 
 	updateMenuStatus(mToggle)
