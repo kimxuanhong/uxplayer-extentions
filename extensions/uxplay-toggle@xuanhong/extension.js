@@ -2,6 +2,8 @@ const { Gio, GLib, St, Clutter, GObject } = imports.gi;
 const Main = imports.ui.main;
 const PanelMenu = imports.ui.panelMenu;
 const PopupMenu = imports.ui.popupMenu;
+const ExtensionUtils = imports.misc.extensionUtils;
+const Me = ExtensionUtils.getCurrentExtension();
 
 const UxPlayDBusInterface = `
 <node>
@@ -12,6 +14,12 @@ const UxPlayDBusInterface = `
         <method name="Status">
             <arg type="b" name="status" direction="out"/>
         </method>
+        <method name="IsSharing">
+            <arg type="b" name="status" direction="out"/>
+        </method>
+        <signal name="SharingChanged">
+            <arg type="b" name="status"/>
+        </signal>
     </interface>
 </node>`;
 
@@ -24,8 +32,12 @@ class UxPlayToggle extends PanelMenu.Button {
     _init() {
         super._init(0.0, "UxPlayToggle");
 
+        const iconPath = Me.dir.get_child('overlapping-windows-symbolic.svg').get_path();
+        const iconFile = Gio.File.new_for_path(iconPath);
+        this.customIcon = new Gio.FileIcon({ file: iconFile });
+
         this.icon = new St.Icon({
-            icon_name: 'media-playback-start-symbolic',
+            gicon: this.customIcon,
             style_class: 'system-status-icon',
         });
         this.add_child(this.icon);
@@ -35,6 +47,16 @@ class UxPlayToggle extends PanelMenu.Button {
             'org.uxplay.Tray',
             '/org/uxplay/Tray'
         );
+
+        // Lắng nghe signal SharingChanged
+        this._proxy.connectSignal('SharingChanged', (proxy, senderName, [isSharing]) => {
+            log(`[UxPlay] SharingChanged signal received: ${isSharing}`);
+            if (isSharing) {
+                this.icon.set_style("color: green; font-weight: bold;");
+            } else {
+                this.icon.set_style("color: white;");
+            }
+        });
 
         // Menu Toggle UxPlay
         this.toggleItem = new PopupMenu.PopupMenuItem('Starting Service...');
@@ -93,8 +115,8 @@ class UxPlayToggle extends PanelMenu.Button {
                     if (this.daemonItem && this.daemonItem.label) {
                         this.daemonItem.label.set_text('Start service');
                     }
-                    this.icon.set_icon_name('media-playback-stop-symbolic');
-                    this.icon.set_style("opacity: 0.5; color: gray;");
+                    this.icon.set_gicon(this.customIcon);
+                    this.icon.set_style("opacity: 0.5; color: white;");
                     return;
                 }
 
@@ -110,12 +132,22 @@ class UxPlayToggle extends PanelMenu.Button {
                 }
 
                 if (isRunning) {
-                    this.icon.set_icon_name('media-playback-stop-symbolic');
+                    this.icon.set_gicon(this.customIcon);
                     this.icon.set_style("color: #3584e4;"); 
                 } else {
-                    this.icon.set_icon_name('media-playback-stop-symbolic');
-                    this.icon.set_style(""); 
+                    this.icon.set_gicon(this.customIcon);
+                    this.icon.set_style("color: white;"); 
                 }
+
+                // Cập nhật trạng thái sharing
+                this._proxy.IsSharingRemote((sharingResult, err) => {
+                    if (!err && sharingResult) {
+                        const [isSharing] = sharingResult;
+                        if (isSharing) {
+                            this.icon.set_style("color: green; font-weight: bold;"); // Đổi màu khi có người chia sẻ
+                        }
+                    }
+                });
             });
         }
     }
