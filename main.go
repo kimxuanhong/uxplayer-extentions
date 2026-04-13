@@ -1,159 +1,115 @@
 package main
 
 import (
-	"log"
-	"os/exec"
-	"sync"
-	"time"
+"log"
+"os/exec"
+"sync"
 
-	"github.com/getlantern/systray"
-	"github.com/godbus/dbus/v5"
+"github.com/godbus/dbus/v5"
 )
 
 var (
-	uxplayCmd *exec.Cmd
-	mu        sync.Mutex
+uxplayCmd *exec.Cmd
+mu        sync.Mutex
+exitChan  = make(chan struct{})
 )
 
 // Gọi trong lock
 func isRunning() bool {
-	return uxplayCmd != nil
+return uxplayCmd != nil
 }
 
 // DBus Object
 type UxPlay struct{}
 
 func (u UxPlay) Toggle() (bool, *dbus.Error) {
-	mu.Lock()
-	running := isRunning()
-	mu.Unlock()
+mu.Lock()
+running := isRunning()
+mu.Unlock()
 
-	if running {
-		stopUxPlay()
-		return false, nil
-	} else {
-		startUxPlay()
-		return true, nil
-	}
+if running {
+stopUxPlay()
+return false, nil
+} else {
+startUxPlay()
+return true, nil
+}
 }
 
 func (u UxPlay) Status() (bool, *dbus.Error) {
-	mu.Lock()
-	defer mu.Unlock()
-	return isRunning(), nil
+mu.Lock()
+defer mu.Unlock()
+return isRunning(), nil
+}
+
+func (u UxPlay) Quit() (bool, *dbus.Error) {
+stopUxPlay()
+close(exitChan)
+return true, nil
 }
 
 func initDBus() {
-	conn, err := dbus.ConnectSessionBus()
-	if err != nil {
-		log.Fatalf("Failed to connect to session bus: %v", err)
-	}
+conn, err := dbus.ConnectSessionBus()
+if err != nil {
+log.Fatalf("Failed to connect to session bus: %v", err)
+}
 
-	u := UxPlay{}
-	conn.Export(u, "/org/uxplay/Tray", "org.uxplay.Tray")
-	reply, err := conn.RequestName("org.uxplay.Tray", dbus.NameFlagDoNotQueue)
-	if err != nil {
-		log.Printf("Failed to request DBus name: %v", err)
-		return
-	}
-	if reply != dbus.RequestNameReplyPrimaryOwner {
-		log.Println("DBus name already taken")
-	}
+u := UxPlay{}
+conn.Export(u, "/org/uxplay/Tray", "org.uxplay.Tray")
+reply, err := conn.RequestName("org.uxplay.Tray", dbus.NameFlagDoNotQueue)
+if err != nil {
+log.Printf("Failed to request DBus name: %v", err)
+return
+}
+if reply != dbus.RequestNameReplyPrimaryOwner {
+log.Println("DBus name already taken")
+}
 }
 
 func startUxPlay() {
-	mu.Lock()
-	defer mu.Unlock()
+mu.Lock()
+defer mu.Unlock()
 
-	if isRunning() {
-		return
-	}
+if isRunning() {
+return
+}
 
-	cmd := exec.Command("uxplay", "-n", "Ubuntu AirPlay")
-	if err := cmd.Start(); err != nil {
-		log.Printf("Failed to start uxplay: %v", err)
-		return
-	}
+cmd := exec.Command("uxplay", "-n", "Ubuntu AirPlay")
+if err := cmd.Start(); err != nil {
+log.Printf("Failed to start uxplay: %v", err)
+return
+}
 
-	uxplayCmd = cmd
-	log.Printf("UxPlay started (PID: %d)", cmd.Process.Pid)
+uxplayCmd = cmd
+log.Printf("UxPlay started (PID: %d)", cmd.Process.Pid)
 
-	go func() {
-		cmd.Wait()
-		mu.Lock()
-		uxplayCmd = nil
-		mu.Unlock()
-		log.Println("UxPlay exited")
-	}()
+go func() {
+cmd.Wait()
+mu.Lock()
+uxplayCmd = nil
+mu.Unlock()
+log.Println("UxPlay exited")
+}()
 }
 
 func stopUxPlay() {
-	mu.Lock()
-	defer mu.Unlock()
+mu.Lock()
+defer mu.Unlock()
 
-	if !isRunning() {
-		return
-	}
-
-	if err := uxplayCmd.Process.Kill(); err != nil {
-		log.Printf("Failed to kill uxplay: %v", err)
-		return
-	}
-
-	log.Printf("UxPlay stopped (PID: %d)", uxplayCmd.Process.Pid)
-	uxplayCmd = nil
+if !isRunning() {
+return
 }
 
-func updateMenuStatus(mToggle *systray.MenuItem) {
-	mu.Lock()
-	running := isRunning()
-	mu.Unlock()
-
-	if running {
-		mToggle.SetTitle("Stop")
-	} else {
-		mToggle.SetTitle("Start ")
-	}
+if err := uxplayCmd.Process.Kill(); err != nil {
+log.Printf("Failed to kill uxplay: %v", err)
+return
 }
 
-func onReady() {
-	systray.SetTitle("AirPlay")
-	systray.SetTooltip("UxPlay AirPlay Receiver")
-
-	mToggle := systray.AddMenuItem("Start", "Toggle")
-	mQuit := systray.AddMenuItem("Quit", "Quit")
-
-	updateMenuStatus(mToggle)
-
-	go func() {
-		for {
-			select {
-			case <-mToggle.ClickedCh:
-				mu.Lock()
-				running := isRunning()
-				mu.Unlock()
-
-				if running {
-					stopUxPlay()
-				} else {
-					startUxPlay()
-				}
-
-				time.Sleep(300 * time.Millisecond)
-				updateMenuStatus(mToggle)
-
-			case <-mQuit.ClickedCh:
-				stopUxPlay()
-				systray.Quit()
-				return
-			}
-		}
-	}()
+log.Printf("UxPlay stopped (PID: %d)", uxplayCmd.Process.Pid)
+uxplayCmd = nil
 }
-
-func onExit() {}
 
 func main() {
-	go initDBus()
-	systray.Run(onReady, onExit)
+initDBus()
+<-exitChan
 }
