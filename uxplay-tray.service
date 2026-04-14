@@ -1,12 +1,14 @@
 [Unit]
 Description=UxPlay Tray Application
-After=network.target
+After=graphical-session-started.target
+PartOf=graphical-session.target
 
 [Service]
 Type=simple
+ExecStartPre=/bin/sleep 3
 ExecStart=/home/xuanhong/uxplay-tray/uxplay-tray
 Restart=on-failure
 RestartSec=5
 
 [Install]
-WantedBy=default.target
+WantedBy=graphical-session.target
