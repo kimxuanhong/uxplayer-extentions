@@ -240,11 +240,10 @@ func initDBus() {
 	conn.Export(u, "/org/uxplay/Tray", "org.uxplay.Tray")
 	reply, err := conn.RequestName("org.uxplay.Tray", dbus.NameFlagDoNotQueue)
 	if err != nil {
-		log.Printf("Failed to request DBus name: %v", err)
-		return
+		log.Fatalf("Failed to request DBus name: %v", err)
 	}
 	if reply != dbus.RequestNameReplyPrimaryOwner {
-		log.Println("DBus name already taken")
+		log.Fatalf("DBus name already taken - another instance is running")
 	}
 }
 
