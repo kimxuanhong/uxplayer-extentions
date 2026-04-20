@@ -1,6 +1,6 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
-set -e
+set -euo pipefail
 
 echo "================================"
 echo "UxPlay Tray Installer"
@@ -32,7 +32,7 @@ if [[ "$OSTYPE" != "linux-gnu"* ]]; then
 fi
 
 # Get the directory where the script is located
-SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # 1. Update system packages
 print_info "Updating system packages..."
@@ -40,53 +40,46 @@ sudo apt-get update
 print_status "System packages updated"
 
 # 2. Install dependencies
-print_info "Installing dependencies..."
+print_info "Installing build and runtime dependencies..."
 sudo apt-get install -y \
     golang-go \
-    gstreamer1.0-plugins-base \
+    uxplay \
     gstreamer1.0-plugins-good \
-    gstreamer1.0-plugins-bad \
     gstreamer1.0-pulseaudio \
-    libavahi-client3 \
-    libavahi-common3 \
-    libplist3 \
-    libsodium23 \
-    openssl
+    gstreamer1.0-plugins-bad
 print_status "Dependencies installed"
 
-# 3. Install UxPlay from apt
-print_info "Installing UxPlay..."
-sudo apt-get install -y uxplay
-print_status "UxPlay installed"
-
-# 4. Build the Go application
+# 3. Build the Go application
 print_info "Building UxPlay Tray daemon..."
 cd "$SCRIPT_DIR"
 if [ -f "go.mod" ]; then
-    go build -o uxplay-tray main.go
+    go build -o uxplay-tray .
     print_status "UxPlay Tray daemon built successfully"
 else
     print_error "go.mod not found in $SCRIPT_DIR"
     exit 1
 fi
 
-# 5. Install the daemon
+# 4. Install the daemon
 print_info "Installing UxPlay Tray daemon..."
-sudo cp uxplay-tray /usr/local/bin/
-sudo chmod +x /usr/local/bin/uxplay-tray
+sudo install -Dm755 uxplay-tray /usr/local/bin/uxplay-tray
 print_status "Daemon installed to /usr/local/bin/uxplay-tray"
 
-# 6. Install systemd service
-print_info "Installing systemd service..."
-mkdir -p ~/.config/systemd/user/
-cp "$SCRIPT_DIR/uxplay-tray.service" ~/.config/systemd/user/uxplay-tray.service
+# 5. Install D-Bus activation
+print_info "Installing D-Bus activation service..."
+mkdir -p "$HOME/.local/share/dbus-1/services"
+sed 's|/usr/bin/uxplay-tray|/usr/local/bin/uxplay-tray|g' \
+    "$SCRIPT_DIR/org.uxplay.Tray.service" \
+    > "$HOME/.local/share/dbus-1/services/org.uxplay.Tray.service"
+print_status "D-Bus activation installed"
 
-# Update the service file to use the correct path
-sed -i "s|ExecStart=.*|ExecStart=/usr/local/bin/uxplay-tray|g" ~/.config/systemd/user/uxplay-tray.service
-
-systemctl --user daemon-reload
-systemctl --user enable uxplay-tray.service
-print_status "Systemd service installed and enabled"
+# 6. Install session autostart
+print_info "Installing session autostart entry..."
+mkdir -p "$HOME/.config/autostart"
+sed 's|/usr/bin/uxplay-tray|/usr/local/bin/uxplay-tray|g' \
+    "$SCRIPT_DIR/uxplay-tray-autostart.desktop" \
+    > "$HOME/.config/autostart/uxplay-tray.desktop"
+print_status "Autostart entry installed"
 
 # 7. Install GNOME Shell extension
 print_info "Installing GNOME Shell extension..."
@@ -99,8 +92,14 @@ print_status "Extension installed to $EXT_DIR"
 
 # 8. Copy desktop file
 print_info "Installing desktop entry..."
-mkdir -p ~/.local/share/applications/
-cp "$SCRIPT_DIR/uxplay-tray.desktop" ~/.local/share/applications/
+mkdir -p "$HOME/.local/share/applications"
+sed 's|/usr/bin/uxplay-tray|/usr/local/bin/uxplay-tray|g' \
+    "$SCRIPT_DIR/uxplay-tray.desktop" \
+    > "$HOME/.local/share/applications/uxplay-tray.desktop"
+
+print_info "Installing application icon..."
+mkdir -p "$HOME/.local/share/icons/hicolor/scalable/apps"
+cp "$SCRIPT_DIR/icons/overlapping-windows-symbolic.svg" "$HOME/.local/share/icons/hicolor/scalable/apps/uxplay-tray.svg"
 print_status "Desktop entry installed"
 
 # 9. Summary
@@ -113,14 +112,10 @@ echo "Next steps:"
 echo "1. Restart GNOME Shell (Alt+F2, type 'r', press Enter)"
 echo "   OR log out and log back in"
 echo ""
-echo "2. Enable the extension in GNOME Extensions app"
+echo "2. Open 'UxPlay Tray' once from the app menu if you want to use it immediately"
 echo ""
-echo "3. Start the daemon manually:"
-echo "   systemctl --user start uxplay-tray.service"
+echo "3. Enable the extension in GNOME Extensions app if you want the top bar toggle"
 echo ""
-echo "4. Check daemon status:"
-echo "   systemctl --user status uxplay-tray.service"
-echo ""
-echo "5. View daemon logs:"
-echo "   journalctl --user -u uxplay-tray.service -f"
+echo "4. Check process if needed:"
+echo "   pgrep -af uxplay-tray"
 echo ""

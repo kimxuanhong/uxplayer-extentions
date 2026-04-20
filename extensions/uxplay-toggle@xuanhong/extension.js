@@ -120,28 +120,10 @@ class UxPlayToggle extends PanelMenu.Button {
         this.rotationItem.connect('activate', () => this._openRotationDialog());
         this.menu.addMenuItem(this.rotationItem);
 
-        // Menu Separator
-        this.menu.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-
-        // Menu Quản lý Systemd Daemon
-        this.daemonItem = new PopupMenu.PopupMenuItem('Starti Service');
-        this.daemonItem.connect('activate', () => {
-            if (this.isDaemonRunning) {
-                GLib.spawn_command_line_async("systemctl --user stop uxplay-tray.service");
-                this.daemonItem.label.set_text("Stoping Service...");
-            } else {
-                GLib.spawn_command_line_async("systemctl --user start uxplay-tray.service");
-                this.daemonItem.label.set_text("Starting Service...");
-            }
-            setTimeout(() => this._updateIconStatus(), 2000); // Check lại sau 2 giây
-        });
-        this.menu.addMenuItem(this.daemonItem);
-
         this.menu.connect('open-state-changed', (menu, isOpen) => {
             if (isOpen) this._updateIconStatus();
         });
 
-        this.isDaemonRunning = false;
         this._updateIconStatus();
 
         // Check định kỳ trạng thái nếu extension muốn tự cập nhật (ko bắt buộc)
@@ -390,13 +372,8 @@ class UxPlayToggle extends PanelMenu.Button {
         if (this._proxy) {
             this._proxy.StatusRemote((result, error) => {
                 if (error) {
-                    // Daemon có thể đang tắt
-                    this.isDaemonRunning = false;
                     if (this.toggleItem && this.toggleItem.label) {
-                        this.toggleItem.label.set_text('Service stoped');
-                    }
-                    if (this.daemonItem && this.daemonItem.label) {
-                        this.daemonItem.label.set_text('Start service');
+                        this.toggleItem.label.set_text('Starting service...');
                     }
                     this.icon.set_gicon(this.customIcon);
                     this.icon.set_style("color: white;");
@@ -404,12 +381,7 @@ class UxPlayToggle extends PanelMenu.Button {
                     return;
                 }
 
-                // Daemon đang chạy
-                this.isDaemonRunning = true;
                 this.icon.opacity = 255;
-                if (this.daemonItem && this.daemonItem.label) {
-                    this.daemonItem.label.set_text('Stop Service');
-                }
 
                 let isRunning = result ? result[0] : false;
                 if (this.toggleItem && this.toggleItem.label) {

@@ -1,0 +1,13 @@
+Package: uxplay-tray
+Version: 3cc8bf6
+Section: utils
+Priority: optional
+Architecture: amd64
+Depends: libc6,uxplay,gstreamer1.0-plugins-good,gstreamer1.0-pulseaudio
+Recommends: gstreamer1.0-plugins-bad,gnome-shell
+Maintainer: xuanhong
+Installed-Size: 4076
+Description: UxPlay tray daemon with GNOME Shell toggle integration
+ A small Go daemon that exposes UxPlay controls over D-Bus, ships
+ a desktop entry, D-Bus activation, login autostart, and an optional GNOME Shell
+ extension for quick start/stop access from the top panel.

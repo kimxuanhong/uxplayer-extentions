@@ -1,0 +1,8 @@
+{
+  "name": "UxPlay Toggle",
+  "description": "Start/Stop UxPlay directly from the top panel",
+  "uuid": "uxplay-toggle@xuanhong",
+  "shell-version": [
+    "42", "43", "44"
+  ]
+}
